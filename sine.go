@@ -9,20 +9,14 @@ import (
 const (
 	sampleRate  = 44100
 	duration    = 2
-	frequency   = 440
-	amplitude   = 0.5
+	fundamental = 440
 	numChannels = 1
 	bitDepth    = 16
 )
 
-func main() {
-	file, err := os.Create("out/sine_wave.wav")
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-	writeWAVHeader(file, sampleRate, numChannels, bitDepth)
-	generateSineWave(file, sampleRate, duration, frequency, amplitude)
+type Harmonic struct {
+	Frequency float64
+	Amplitude float64
 }
 
 func writeWAVHeader(file *os.File, sampleRate, numChannels, bitDepth int) {
@@ -41,10 +35,34 @@ func writeWAVHeader(file *os.File, sampleRate, numChannels, bitDepth int) {
 	binary.Write(file, binary.LittleEndian, int32(duration*sampleRate*numChannels*bitDepth/8))
 }
 
-func generateSineWave(file *os.File, sampleRate, duration int, frequency, amplitude float64) {
+func generateHarmonicWave(file *os.File, sampleRate, duration int, harmonics []Harmonic) {
 	for i := 0; i < sampleRate*duration; i++ {
 		t := float64(i) / float64(sampleRate)
-		sample := int16(amplitude * math.Sin(2*math.Pi*frequency*t) * 32767)
-		binary.Write(file, binary.LittleEndian, sample)
+		sample := 0.0
+		for _, h := range harmonics {
+			sample += h.Amplitude * math.Sin(2*math.Pi*h.Frequency*t)
+		}
+		sample /= float64(len(harmonics))
+		intSample := int16(sample * 32767)
+		binary.Write(file, binary.LittleEndian, intSample)
 	}
+}
+
+func main() {
+	file, err := os.Create("out/harmonic.wav")
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	writeWAVHeader(file, sampleRate, numChannels, bitDepth)
+
+	harmonics := []Harmonic{
+		{Frequency: fundamental, Amplitude: 0.5},
+		{Frequency: fundamental * 2, Amplitude: 0.3},
+		{Frequency: fundamental * 3, Amplitude: 0.15},
+		{Frequency: fundamental * 4, Amplitude: 0.05},
+	}
+
+	generateHarmonicWave(file, sampleRate, duration, harmonics)
 }
