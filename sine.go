@@ -1,13 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"encoding/binary"
 	"fmt"
 	"math"
 	"os"
-	"strconv"
-	"strings"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/widget"
 )
 
 const (
@@ -25,14 +27,16 @@ type Harmonic struct {
 }
 
 func generateWaveFile(harmonics []Harmonic) {
-	file, err := os.Create("out/alt_harm2.wav")
+	file, err := os.Create("out/harmonic_wave.wav")
 	if err != nil {
-		panic(err)
+		fmt.Println("Error creating file:", err)
+		return
 	}
 	defer file.Close()
 
 	writeWAVHeader(file, sampleRate, numChannels, bitDepth)
 	generateHarmonicWave(file, sampleRate, duration, harmonics)
+	fmt.Println("Wave file generated successfully.")
 }
 
 func writeWAVHeader(file *os.File, sampleRate, numChannels, bitDepth int) {
@@ -48,6 +52,7 @@ func writeWAVHeader(file *os.File, sampleRate, numChannels, bitDepth int) {
 	binary.Write(file, binary.LittleEndian, int32(sampleRate*numChannels*bitDepth/8))
 	binary.Write(file, binary.LittleEndian, int16(numChannels*bitDepth/8))
 	binary.Write(file, binary.LittleEndian, int16(bitDepth))
+
 	file.WriteString("data")
 	binary.Write(file, binary.LittleEndian, int32(duration*sampleRate*numChannels*bitDepth/8))
 }
@@ -66,45 +71,39 @@ func generateHarmonicWave(file *os.File, sampleRate, duration int, harmonics []H
 }
 
 func main() {
+	a := app.New()
+	w := a.NewWindow("Harmonic Wave Generator")
+
 	harmonics := make([]Harmonic, numHarmonics)
-	for i := 0; i < numHarmonics; i++ {
-		harmonics[i] = Harmonic{Frequency: fundamental * float64(i+1)}
-	}
+	sliders := make([]*widget.Slider, numHarmonics)
+	labels := make([]*widget.Label, numHarmonics)
 
-	for {
-		fmt.Println("\nCurrent harmonic amplitudes:")
-		for i, h := range harmonics {
-			fmt.Printf("%d. Frequency: %.2f Hz, Amplitude: %.2f\n", i+1, h.Frequency, h.Amplitude)
-		}
+	for i := range harmonics {
+		harmonics[i] = Harmonic{Frequency: fundamental * float64(i+1), Amplitude: 0}
+		sliders[i] = widget.NewSlider(0, 100)
+		sliders[i].Step = 1
+		labels[i] = widget.NewLabel(fmt.Sprintf("Harmonic %d (%.0f Hz): 0.00", i+1, harmonics[i].Frequency))
 
-		fmt.Println("\nEnter new amplitudes (0-1) for each harmonic, separated by spaces:")
-		fmt.Println("Or type 'q' to quit, 'g' to generate the wave with current settings")
-
-		reader := bufio.NewReader(os.Stdin)
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-
-		if input == "q" {
-			fmt.Println("Exiting program.")
-			return
-		} else if input == "g" {
-			generateWaveFile(harmonics)
-			fmt.Println("Wave file generated with current settings.")
-		} else {
-			amplitudes := strings.Split(input, " ")
-			if len(amplitudes) != numHarmonics {
-				fmt.Printf("Please enter exactly %d amplitudes.\n", numHarmonics)
-				continue
-			}
-
-			for i, amp := range amplitudes {
-				value, err := strconv.ParseFloat(amp, 64)
-				if err != nil || value < 0 || value > 1 {
-					fmt.Printf("Invalid amplitude for harmonic %d. Please enter a number between 0 and 1.\n", i+1)
-					continue
-				}
-				harmonics[i].Amplitude = value
-			}
+		index := i
+		sliders[i].OnChanged = func(value float64) {
+			amplitude := value / 100
+			harmonics[index].Amplitude = amplitude
+			labels[index].SetText(fmt.Sprintf("Harmonic %d (%.0f Hz): %.2f", index+1, harmonics[index].Frequency, amplitude))
 		}
 	}
+
+	generateButton := widget.NewButton("Generate Wave", func() {
+		generateWaveFile(harmonics)
+	})
+
+	content := container.NewVBox()
+	for i := range harmonics {
+		content.Add(labels[i])
+		content.Add(sliders[i])
+	}
+	content.Add(generateButton)
+
+	w.SetContent(content)
+	w.Resize(fyne.NewSize(300, 400))
+	w.ShowAndRun()
 }
