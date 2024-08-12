@@ -9,6 +9,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -90,20 +91,29 @@ func main() {
 			harmonics[index].Amplitude = amplitude
 			labels[index].SetText(fmt.Sprintf("Harmonic %d (%.0f Hz): %.2f", index+1, harmonics[index].Frequency, amplitude))
 		}
+
+		sliders[i].Orientation = widget.Vertical // Set the slider orientation to vertical
 	}
 
 	generateButton := widget.NewButton("Generate Wave", func() {
 		generateWaveFile(harmonics)
 	})
 
-	content := container.NewVBox()
+	// Create a horizontal box to place sliders and labels next to each other
+	hbox := container.NewHBox()
 	for i := range harmonics {
-		content.Add(labels[i])
-		content.Add(sliders[i])
+		vbox := container.NewVBox(labels[i], sliders[i]) // Vertical box for each label-slider pair
+		hbox.Add(vbox)
 	}
-	content.Add(generateButton)
+
+	// Add a spacer to push the content to the bottom
+	content := container.NewVBox(
+		layout.NewSpacer(), // Spacer to push content to the bottom
+		hbox,
+		generateButton,
+	)
 
 	w.SetContent(content)
-	w.Resize(fyne.NewSize(300, 400))
+	w.Resize(fyne.NewSize(600, 400)) // Resize window to accommodate horizontal layout
 	w.ShowAndRun()
 }
