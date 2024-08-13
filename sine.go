@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"image"
 	"image/color"
 	"math"
 	"os"
@@ -25,6 +24,7 @@ const (
 	numHarmonics = 8
 	graphWidth   = 600
 	graphHeight  = 200
+	numPoints    = 200
 )
 
 type Harmonic struct {
@@ -35,6 +35,7 @@ type Harmonic struct {
 type WaveformGraph struct {
 	widget.BaseWidget
 	harmonics []Harmonic
+	rect      *canvas.Rectangle
 }
 
 func generateWaveFile(harmonics []Harmonic) {
@@ -81,22 +82,37 @@ func generateHarmonicWave(file *os.File, sampleRate, duration int, harmonics []H
 	}
 }
 
-func drawWaveform(harmonics []Harmonic, w, h int) *canvas.Raster {
-	return canvas.NewRaster(func(w, h int) image.Image {
-		img := image.NewRGBA(image.Rect(0, 0, w, h))
+func NewWaveformGraph(harmonics []Harmonic) *WaveformGraph {
+	g := &WaveformGraph{
+		harmonics: harmonics,
+		rect:      canvas.NewRectangle(color.RGBA{R: 0, G: 0, B: 255, A: 255}),
+	}
+	g.ExtendBaseWidget(g)
+	g.rect.Resize(fyne.NewSize(graphWidth, graphHeight))
+	g.Refresh()
+	return g
+}
 
-		for x := 0; x < w; x++ {
-			t := float64(x) / float64(w)
-			y := 0.0
-			for _, h := range harmonics {
-				y += h.Amplitude * math.Sin(2*math.Pi*h.Frequency*t)
-			}
-			y = y*float64(h)/2 + float64(h)/2
-			img.Set(x, int(y), color.RGBA{0, 0, 255, 255})
-		}
+func (g *WaveformGraph) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(g.rect)
+}
 
-		return img
-	})
+func (g *WaveformGraph) Refresh() {
+	g.updateGraph()
+	g.BaseWidget.Refresh()
+}
+
+func (g *WaveformGraph) updateGraph() {
+	height := calculateHeight(g.harmonics)
+	g.rect.Resize(fyne.NewSize(graphWidth, float32(height)))
+}
+
+func calculateHeight(harmonics []Harmonic) float64 {
+	var sum float64
+	for _, h := range harmonics {
+		sum += h.Amplitude
+	}
+	return sum * graphHeight
 }
 
 func main() {
@@ -107,7 +123,7 @@ func main() {
 	sliders := make([]*widget.Slider, numHarmonics)
 	labels := make([]*widget.Label, numHarmonics)
 
-	graph := drawWaveform(harmonics, graphWidth, graphHeight)
+	graph := NewWaveformGraph(harmonics)
 
 	for i := range harmonics {
 		harmonics[i] = Harmonic{Frequency: fundamental * float64(i+1), Amplitude: 0}
@@ -140,11 +156,10 @@ func main() {
 		graph,
 		layout.NewSpacer(),
 		sliderBox,
-		layout.NewSpacer(),
 		generateButton,
 	)
 
 	w.SetContent(content)
-	w.Resize(fyne.NewSize(600, 400))
+	w.Resize(fyne.NewSize(600, 500))
 	w.ShowAndRun()
 }
