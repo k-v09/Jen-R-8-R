@@ -3,11 +3,14 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"image"
+	"image/color"
 	"math"
 	"os"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
@@ -20,11 +23,18 @@ const (
 	numChannels  = 1
 	bitDepth     = 16
 	numHarmonics = 8
+	graphWidth   = 600
+	graphHeight  = 200
 )
 
 type Harmonic struct {
 	Frequency float64
 	Amplitude float64
+}
+
+type WaveformGraph struct {
+	widget.BaseWidget
+	harmonics []Harmonic
 }
 
 func generateWaveFile(harmonics []Harmonic) {
@@ -71,6 +81,24 @@ func generateHarmonicWave(file *os.File, sampleRate, duration int, harmonics []H
 	}
 }
 
+func drawWaveform(harmonics []Harmonic, w, h int) *canvas.Raster {
+	return canvas.NewRaster(func(w, h int) image.Image {
+		img := image.NewRGBA(image.Rect(0, 0, w, h))
+
+		for x := 0; x < w; x++ {
+			t := float64(x) / float64(w)
+			y := 0.0
+			for _, h := range harmonics {
+				y += h.Amplitude * math.Sin(2*math.Pi*h.Frequency*t)
+			}
+			y = y*float64(h)/2 + float64(h)/2
+			img.Set(x, int(y), color.RGBA{0, 0, 255, 255})
+		}
+
+		return img
+	})
+}
+
 func main() {
 	a := app.New()
 	w := a.NewWindow("Harmonic Wave Generator")
@@ -78,6 +106,8 @@ func main() {
 	harmonics := make([]Harmonic, numHarmonics)
 	sliders := make([]*widget.Slider, numHarmonics)
 	labels := make([]*widget.Label, numHarmonics)
+
+	graph := drawWaveform(harmonics, graphWidth, graphHeight)
 
 	for i := range harmonics {
 		harmonics[i] = Harmonic{Frequency: fundamental * float64(i+1), Amplitude: 0}
@@ -90,30 +120,31 @@ func main() {
 			amplitude := value / 100
 			harmonics[index].Amplitude = amplitude
 			labels[index].SetText(fmt.Sprintf("Harmonic %d (%.0f Hz): %.2f", index+1, harmonics[index].Frequency, amplitude))
+			graph.Refresh()
 		}
 
-		sliders[i].Orientation = widget.Vertical // Set the slider orientation to vertical
+		sliders[i].Orientation = widget.Vertical
 	}
 
 	generateButton := widget.NewButton("Generate Wave", func() {
 		generateWaveFile(harmonics)
 	})
 
-	// Create a horizontal box to place sliders and labels next to each other
-	hbox := container.NewHBox()
+	sliderBox := container.NewHBox()
 	for i := range harmonics {
-		vbox := container.NewVBox(labels[i], sliders[i]) // Vertical box for each label-slider pair
-		hbox.Add(vbox)
+		vbox := container.NewVBox(labels[i], sliders[i])
+		sliderBox.Add(vbox)
 	}
 
-	// Add a spacer to push the content to the bottom
 	content := container.NewVBox(
-		layout.NewSpacer(), // Spacer to push content to the bottom
-		hbox,
+		graph,
+		layout.NewSpacer(),
+		sliderBox,
+		layout.NewSpacer(),
 		generateButton,
 	)
 
 	w.SetContent(content)
-	w.Resize(fyne.NewSize(600, 400)) // Resize window to accommodate horizontal layout
+	w.Resize(fyne.NewSize(600, 400))
 	w.ShowAndRun()
 }
