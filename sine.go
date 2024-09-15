@@ -3,15 +3,11 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
-	"image/color"
 	"math"
 	"os"
 
-	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -21,7 +17,7 @@ const (
 	fundamental  = 440
 	numChannels  = 1
 	bitDepth     = 16
-	numHarmonics = 8
+	numHarmonics = 16
 	graphWidth   = 600
 	graphHeight  = 200
 	numPoints    = 200
@@ -34,8 +30,6 @@ type Harmonic struct {
 
 type WaveformGraph struct {
 	widget.BaseWidget
-	harmonics []Harmonic
-	rect      *canvas.Rectangle
 }
 
 func generateWaveFile(harmonics []Harmonic) {
@@ -82,39 +76,6 @@ func generateHarmonicWave(file *os.File, sampleRate, duration int, harmonics []H
 	}
 }
 
-func NewWaveformGraph(harmonics []Harmonic) *WaveformGraph {
-	g := &WaveformGraph{
-		harmonics: harmonics,
-		rect:      canvas.NewRectangle(color.RGBA{R: 0, G: 0, B: 255, A: 255}),
-	}
-	g.ExtendBaseWidget(g)
-	g.rect.Resize(fyne.NewSize(graphWidth, graphHeight))
-	g.Refresh()
-	return g
-}
-
-func (g *WaveformGraph) CreateRenderer() fyne.WidgetRenderer {
-	return widget.NewSimpleRenderer(g.rect)
-}
-
-func (g *WaveformGraph) Refresh() {
-	g.updateGraph()
-	g.BaseWidget.Refresh()
-}
-
-func (g *WaveformGraph) updateGraph() {
-	height := calculateHeight(g.harmonics)
-	g.rect.Resize(fyne.NewSize(graphWidth, float32(height)))
-}
-
-func calculateHeight(harmonics []Harmonic) float64 {
-	var sum float64
-	for _, h := range harmonics {
-		sum += h.Amplitude
-	}
-	return sum * graphHeight
-}
-
 func main() {
 	a := app.New()
 	w := a.NewWindow("Harmonic Wave Generator")
@@ -122,8 +83,6 @@ func main() {
 	harmonics := make([]Harmonic, numHarmonics)
 	sliders := make([]*widget.Slider, numHarmonics)
 	labels := make([]*widget.Label, numHarmonics)
-
-	graph := NewWaveformGraph(harmonics)
 
 	for i := range harmonics {
 		harmonics[i] = Harmonic{Frequency: fundamental * float64(i+1), Amplitude: 0}
@@ -136,7 +95,6 @@ func main() {
 			amplitude := value / 100
 			harmonics[index].Amplitude = amplitude
 			labels[index].SetText(fmt.Sprintf("Harmonic %d (%.0f Hz): %.2f", index+1, harmonics[index].Frequency, amplitude))
-			graph.Refresh()
 		}
 
 		sliders[i].Orientation = widget.Vertical
@@ -153,13 +111,10 @@ func main() {
 	}
 
 	content := container.NewVBox(
-		graph,
-		layout.NewSpacer(),
 		sliderBox,
 		generateButton,
 	)
 
 	w.SetContent(content)
-	w.Resize(fyne.NewSize(600, 500))
 	w.ShowAndRun()
 }
