@@ -17,7 +17,7 @@ const (
 	fundamental  = 440
 	numChannels  = 1
 	bitDepth     = 16
-	numHarmonics = 16
+	numHarmonics = 32
 	graphWidth   = 600
 	graphHeight  = 200
 	numPoints    = 200
@@ -105,13 +105,27 @@ func main() {
 	})
 
 	sliderBox := container.NewHBox()
+	sb2 := container.NewHBox()
+	sb3 := container.NewHBox()
+	sb4 := container.NewHBox()
 	for i := range harmonics {
 		vbox := container.NewVBox(labels[i], sliders[i])
-		sliderBox.Add(vbox)
+		if i < 8 {
+			sliderBox.Add(vbox)
+		} else if i < 16 {
+			sb2.Add(vbox)
+		} else if i < 24 {
+			sb3.Add(vbox)
+		} else if i < 32 {
+			sb4.Add(vbox)
+		}
 	}
 
 	content := container.NewVBox(
 		sliderBox,
+		sb2,
+		sb3,
+		sb4,
 		generateButton,
 	)
 
