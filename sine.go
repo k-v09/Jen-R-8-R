@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
@@ -76,10 +77,7 @@ func generateHarmonicWave(file *os.File, sampleRate, duration int, harmonics []H
 	}
 }
 
-func main() {
-	a := app.New()
-	w := a.NewWindow("Harmonic Wave Generator")
-
+func createGeneratorContainer() *fyne.Container {
 	harmonics := make([]Harmonic, numHarmonics)
 	sliders := make([]*widget.Slider, numHarmonics)
 	labels := make([]*widget.Label, numHarmonics)
@@ -104,14 +102,14 @@ func main() {
 		generateWaveFile(harmonics)
 	})
 
-	sliderBox := container.NewHBox()
+	sb1 := container.NewHBox()
 	sb2 := container.NewHBox()
 	sb3 := container.NewHBox()
 	sb4 := container.NewHBox()
 	for i := range harmonics {
 		vbox := container.NewVBox(labels[i], sliders[i])
 		if i < 8 {
-			sliderBox.Add(vbox)
+			sb1.Add(vbox)
 		} else if i < 16 {
 			sb2.Add(vbox)
 		} else if i < 24 {
@@ -121,14 +119,46 @@ func main() {
 		}
 	}
 
-	content := container.NewVBox(
-		sliderBox,
+	return (container.NewVBox(
+		widget.NewLabel("Generator Mode"),
+		sb1,
 		sb2,
 		sb3,
 		sb4,
 		generateButton,
-	)
+	))
+}
 
+func createLiveContainer() *fyne.Container {
+	return (container.NewVBox(
+		widget.NewLabel("Live Mode"),
+	))
+}
+
+func main() {
+	a := app.New()
+	w := a.NewWindow("Harmonic Wave Generator")
+	modeToggle := widget.NewCheck("Live Mode", func(checked bool) {})
+	modeToggle.SetChecked(false)
+
+	generatorContainer := createGeneratorContainer()
+	liveContainer := createLiveContainer()
+	contentCard := widget.NewCard("", "", generatorContainer)
+
+	updateContent := func(checked bool) {
+		if checked {
+			contentCard.SetContent(liveContainer)
+		} else {
+			contentCard.SetContent(generatorContainer)
+		}
+	}
+
+	modeToggle.OnChanged = updateContent
+
+	content := container.NewVBox(
+		modeToggle,
+		contentCard,
+	)
 	w.SetContent(content)
 	w.ShowAndRun()
 }
