@@ -135,7 +135,7 @@ func createLiveContainer() *fyne.Container {
 	))
 }
 
-func main() {
+func t() {
 	a := app.New()
 	w := a.NewWindow("Harmonic Wave Generator")
 	modeToggle := widget.NewCheck("Live Mode", func(checked bool) {})
