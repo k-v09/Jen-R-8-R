@@ -130,8 +130,12 @@ func createGeneratorContainer() *fyne.Container {
 }
 
 func createLiveContainer() *fyne.Container {
+	psButton := widget.NewButton("Generate Wave", func() {
+
+	})
 	return (container.NewVBox(
 		widget.NewLabel("Live Mode"),
+		psButton,
 	))
 }
 
