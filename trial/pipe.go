@@ -32,7 +32,7 @@ func generateSineWave(frequency float64, duration time.Duration) []byte {
 	return data
 }
 
-func main() {
+func q() {
 	pipePath := "/tmp/pipe_frequency"
 
 	fmt.Printf("Opening pipe: %s\n", pipePath)
