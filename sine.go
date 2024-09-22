@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
+	"log"
 	"math"
 	"os"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -22,6 +25,38 @@ const (
 	graphWidth   = 600
 	graphHeight  = 200
 	numPoints    = 200
+)
+
+var (
+	octave    = 4
+	relations = map[string]int{
+		"c":  -9,
+		"c#": -8,
+		"d":  -7,
+		"d#": -6,
+		"e":  -5,
+		"f":  -4,
+		"f#": -3,
+		"g":  -2,
+		"g#": -1,
+		"a":  0,
+		"a#": 1,
+		"b":  2,
+	}
+	keys = map[string]string{
+		"z": "c",
+		"s": "c#",
+		"x": "d",
+		"d": "d#",
+		"c": "e",
+		"v": "f",
+		"g": "f#",
+		"b": "g",
+		"h": "g#",
+		"n": "a",
+		"j": "a#",
+		"m": "b",
+	}
 )
 
 type Harmonic struct {
@@ -131,7 +166,7 @@ func createGeneratorContainer() *fyne.Container {
 
 func createLiveContainer() *fyne.Container {
 	psButton := widget.NewButton("Generate Wave", func() {
-
+		pipeListener()
 	})
 	return (container.NewVBox(
 		widget.NewLabel("Live Mode"),
@@ -139,7 +174,47 @@ func createLiveContainer() *fyne.Container {
 	))
 }
 
-func t() {
+func calculateFrequency(dist int, oct int) float64 {
+	distance := float64(dist+(oct-4)*13) / 12
+	return 440 * (math.Pow(2.0, float64(distance)))
+}
+
+func pipeListener() {
+	pipePath := "/tmp/pipe_frequency"
+	for {
+		pipe, err := os.Open(pipePath)
+		if err != nil {
+			log.Fatalf("Error opening pipe: %v", err)
+		}
+		reader := bufio.NewReader(pipe)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				pipe.Close()
+				break
+			}
+
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "p:") {
+				key := strings.TrimPrefix(line, "p:")
+				k := keys[key]
+				fmt.Printf("Playing note: %s at frequency %f\n", k, calculateFrequency(relations[k], octave))
+				line = key
+			} else if strings.HasPrefix(line, "r:") {
+				key := strings.TrimPrefix(line, "r:")
+				fmt.Printf("Key released: %s\n", key)
+				line = key
+			}
+
+			if line == "q" {
+				fmt.Println("Exiting both programs...")
+				os.Exit(0)
+			}
+		}
+	}
+}
+
+func main() {
 	a := app.New()
 	w := a.NewWindow("Harmonic Wave Generator")
 	modeToggle := widget.NewCheck("Live Mode", func(checked bool) {})

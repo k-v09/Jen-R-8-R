@@ -44,7 +44,7 @@ if __name__ == "__main__":
     disable_echo()  
     try:
         with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
-            print("Listener on (key presses/releases will not show in terminal)")
+            print("Listener on")
             listener.join()
     except KeyboardInterrupt:
         pass

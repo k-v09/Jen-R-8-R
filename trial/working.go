@@ -28,7 +28,7 @@ func makeSamps(freq int) []byte {
 	return samps
 }
 
-func main() {
+func f() {
 	err := termbox.Init()
 	if err != nil {
 		panic(err)
