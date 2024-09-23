@@ -7,6 +7,8 @@ import (
 	"log"
 	"math"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -43,7 +45,7 @@ var (
 		"a#": 1,
 		"b":  2,
 	}
-	keys = map[string]string{
+	stdKeys = map[string]string{
 		"z": "c",
 		"s": "c#",
 		"x": "d",
@@ -165,7 +167,7 @@ func createGeneratorContainer() *fyne.Container {
 }
 
 func createLiveContainer() *fyne.Container {
-	psButton := widget.NewButton("Generate Wave", func() {
+	psButton := widget.NewButton("Start Listener", func() {
 		pipeListener()
 	})
 	return (container.NewVBox(
@@ -180,6 +182,22 @@ func calculateFrequency(dist int, oct int) float64 {
 }
 
 func pipeListener() {
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Error getting current directory: %v", err)
+	}
+	pythonScriptPath := filepath.Join(dir, "revised.py")
+	if _, err := os.Stat(pythonScriptPath); os.IsNotExist(err) {
+		log.Fatalf("Python script does not exist at path: %s", pythonScriptPath)
+	}
+	cmd := exec.Command("python3", "-u", pythonScriptPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		log.Fatalf("Error starting Python script: %v", err)
+	}
+	fmt.Println("Python script started. Listening for key events...")
+
 	pipePath := "/tmp/pipe_frequency"
 	for {
 		pipe, err := os.Open(pipePath)
@@ -197,7 +215,7 @@ func pipeListener() {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "p:") {
 				key := strings.TrimPrefix(line, "p:")
-				k := keys[key]
+				k := stdKeys[key]
 				fmt.Printf("Playing note: %s at frequency %f\n", k, calculateFrequency(relations[k], octave))
 				line = key
 			} else if strings.HasPrefix(line, "r:") {
@@ -207,8 +225,9 @@ func pipeListener() {
 			}
 
 			if line == "q" {
-				fmt.Println("Exiting both programs...")
-				os.Exit(0)
+				fmt.Println("Exiting pipe programs...")
+				pipe.Close()
+				break
 			}
 		}
 	}
