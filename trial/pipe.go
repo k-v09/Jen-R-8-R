@@ -12,17 +12,17 @@ import (
 )
 
 const (
-	sampleRate = 44100
+	sql = 44100
 )
 
 func generateSineWave(frequency float64, duration time.Duration) []byte {
-	length := int(float64(sampleRate) * duration.Seconds())
+	length := int(float64(sql) * duration.Seconds())
 	data := make([]byte, length*2) // 16-bit audio (2 bytes per sample)
 
 	fmt.Printf("Generating sine wave for frequency: %.2f Hz\n", frequency)
 
 	for i := 0; i < length; i++ {
-		t := float64(i) / float64(sampleRate)
+		t := float64(i) / float64(sql)
 		sample := int16(math.Sin(2.0*math.Pi*frequency*t) * 32767)
 		data[2*i] = byte(sample)
 		data[2*i+1] = byte(sample >> 8)
@@ -45,7 +45,7 @@ func q() {
 	fmt.Println("Pipe opened successfully. Waiting for frequency data...")
 
 	// Initialize audio player
-	playerCtx, err := oto.NewContext(sampleRate, 1, 2, 4096)
+	playerCtx, err := oto.NewContext(sql, 1, 2, 4096)
 	if err != nil {
 		fmt.Printf("Error initializing audio player: %v\n", err)
 		return
