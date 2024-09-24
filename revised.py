@@ -3,6 +3,8 @@ import sys
 from pynput import keyboard
 
 pipe = None
+pressed_keys = set()
+
 def setup_pipe():
     global pipe
     pipe_path = "/tmp/pipe_frequency"
@@ -22,19 +24,29 @@ def write_to_pipe(message):
         pipe.flush()
 
 def on_press(key):
+    global pressed_keys
     try:
         char = key.char
     except AttributeError:
         char = str(key)
-    write_to_pipe(f"p:{char}\n")
+
+    if char not in pressed_keys:
+        pressed_keys.add(char)
+        write_to_pipe(f"p:{char}\n")
+    
     return char != 'q'
 
 def on_release(key):
+    global pressed_keys
     try:
         char = key.char
     except AttributeError:
         char = str(key)
-    write_to_pipe(f"r:{char}\n")
+
+    if char in pressed_keys:
+        pressed_keys.remove(char)
+        write_to_pipe(f"r:{char}\n")
+    
     return char != 'q'
 
 if __name__ == "__main__":

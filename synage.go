@@ -22,6 +22,12 @@ const (
 	numHarmonics = 32
 )
 
+type Harmonic struct {
+	Frequency float64
+	Amplitude float64
+	Waveform  string
+}
+
 var (
 	octave    = 4
 	relations = map[string]int{
@@ -54,21 +60,14 @@ var (
 	}
 )
 
-type Harmonic struct {
-	Frequency float64
-	Amplitude float64
-}
-
-func generateWaveFile(harmonics []Harmonic) {
-	file, err := os.Create("out/harmonic_wave.wav")
+func generateWaveFile(harmonics []Harmonic, fileName string) {
+	file, err := os.Create("generated/" + fileName + ".wav")
 	if err != nil {
 		log.Fatalf("Error creating file: %v", err)
 	}
 	defer file.Close()
-
 	writeWAVHeader(file, sampleRate, numChannels, bitDepth)
 	generateHarmonicWave(file, sampleRate, duration, harmonics)
-	fmt.Println("Wave file generated successfully.")
 }
 
 func writeWAVHeader(file *os.File, sampleRate, numChannels, bitDepth int) {
@@ -111,12 +110,22 @@ func generateHarmonicWave(file *os.File, sampleRate, duration int, harmonics []H
 		t := float64(i) / float64(sampleRate)
 		sample := 0.0
 		for _, h := range harmonics {
-			sample += sinCalc(t, h.Frequency, h.Amplitude) //h.Amplitude * math.Sin(2*math.Pi*h.Frequency*t)
+			switch h.Waveform {
+			case "sine":
+				sample += sinCalc(t, h.Frequency, h.Amplitude)
+			case "square":
+				sample += squareCalc(t, h.Frequency, h.Amplitude)
+			case "triangle":
+				sample += triangleCalc(t, h.Frequency, h.Amplitude)
+			case "saw":
+				sample += sawCalc(t, h.Frequency, h.Amplitude)
+			}
 		}
 		sample /= float64(len(harmonics))
 		intSample := int16(sample * 32767)
 		binary.Write(file, binary.LittleEndian, intSample)
 	}
+	fmt.Println("Wave file generated successfully.")
 }
 
 func calculateFrequency(dist int, oct int) float64 {
@@ -181,31 +190,52 @@ func main() {
 
 	harmonics := make([]Harmonic, numHarmonics)
 	for i := range harmonics {
-		harmonics[i] = Harmonic{Frequency: fundamental * float64(i+1), Amplitude: 0}
+		harmonics[i] = Harmonic{Frequency: fundamental * float64(i+1), Amplitude: 0, Waveform: "sine"} // Default to sine wave
 	}
 
+	fmt.Println("Enter 'exit' to quit, 'generate [filename]' to create a wave file, 'listen' to start listening, or tune harmonics like '1 square 88':")
+
 	for {
-		fmt.Println("Enter harmonic amplitudes (0-100) for 32 harmonics or 'generate' to create a wave file, 'listen' to start listening, or 'exit' to quit:")
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
 		if input == "exit" {
 			break
-		} else if input == "generate" {
-			generateWaveFile(harmonics)
+		} else if strings.HasPrefix(input, "generate") {
+			parts := strings.Split(input, " ")
+			fileName := "harmonic_wave.wav"
+			if len(parts) > 1 {
+				fileName = parts[1]
+			}
+			generateWaveFile(harmonics, fileName)
 		} else if input == "listen" {
 			pipeListener()
 		} else {
-			amps := strings.Split(input, " ")
-			for i, ampStr := range amps {
-				if i < len(harmonics) {
-					amp, err := strconv.ParseFloat(ampStr, 64)
-					if err == nil && amp >= 0 && amp <= 100 {
-						harmonics[i].Amplitude = amp / 100
-					} else {
-						fmt.Printf("Invalid amplitude for harmonic %d: %s\n", i+1, ampStr)
-					}
+			parts := strings.Split(input, " ")
+			if len(parts) == 3 {
+				harmonicIndex, err := strconv.Atoi(parts[0])
+				if err != nil || harmonicIndex < 1 || harmonicIndex > len(harmonics) {
+					fmt.Println("Invalid harmonic index.")
+					continue
 				}
+
+				waveform := parts[1]
+				if waveform != "sine" && waveform != "square" && waveform != "triangle" && waveform != "saw" {
+					fmt.Println("Invalid waveform. Choose from 'sine', 'square', 'triangle', 'saw'.")
+					continue
+				}
+
+				amplitude, err := strconv.ParseFloat(parts[2], 64)
+				if err != nil || amplitude < 0 || amplitude > 100 {
+					fmt.Println("Invalid amplitude. Must be between 0 and 100.")
+					continue
+				}
+
+				harmonics[harmonicIndex-1].Waveform = waveform
+				harmonics[harmonicIndex-1].Amplitude = amplitude / 100
+				fmt.Printf("Harmonic %d set to %s wave with amplitude %.2f\n", harmonicIndex, waveform, amplitude)
+			} else {
+				fmt.Println("Invalid input. Use format: [harmonic] [waveform] [amplitude]")
 			}
 		}
 	}
