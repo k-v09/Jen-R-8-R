@@ -1,4 +1,4 @@
-# Harmonic Wave Generator
+# Synage
 
 ## Overview
 This project is a command-line tool written in Go that allows users to generate harmonic waves using various waveforms (sine, square, triangle, and sawtooth) and customize their amplitude and frequency. The tool outputs a `.wav` file that can be played using any audio software. Additionally, the program includes a listener mode that interacts with a Python script for real-time input, making it highly customizable for audio synthesis tasks.
