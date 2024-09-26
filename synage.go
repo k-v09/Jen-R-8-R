@@ -174,6 +174,12 @@ func pipeListener() {
 			} else if strings.HasPrefix(line, "r:") {
 				key := strings.TrimPrefix(line, "r:")
 				fmt.Printf("Key released: %s\n", key)
+			} else if strings.HasPrefix(line, "pot:") {
+				value := strings.TrimPrefix(line, "pot:")
+				fmt.Printf("Potentiometer value: %s\n", value)
+			} else if strings.HasPrefix(line, "sel:") {
+				value := strings.TrimPrefix(line, "sel:")
+				fmt.Printf("Selector value: %s\n", value)
 			}
 
 			if line == "q" {
