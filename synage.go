@@ -29,8 +29,9 @@ type Harmonic struct {
 }
 
 var (
-	octave    = 4
-	relations = map[string]int{
+	octave          = 4
+	currentHarmonic = 0 // Default to first harmonic
+	relations       = map[string]int{
 		"c":  -9,
 		"c#": -8,
 		"d":  -7,
@@ -59,6 +60,12 @@ var (
 		"m": "b",
 	}
 )
+var waveformMap = map[string]string{
+	"1": "sine",
+	"2": "square",
+	"3": "triangle",
+	"4": "saw",
+}
 
 func generateWaveFile(harmonics []Harmonic, fileName string) {
 	file, err := os.Create("generated/" + fileName + ".wav")
@@ -133,7 +140,7 @@ func calculateFrequency(dist int, oct int) float64 {
 	return 440 * (math.Pow(2.0, distance))
 }
 
-func pipeListener() {
+func pipeListener(harmonics []Harmonic) {
 	dir, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("Error getting current directory: %v", err)
@@ -165,8 +172,27 @@ func pipeListener() {
 			}
 
 			line = strings.TrimSpace(line)
-			if strings.HasPrefix(line, "p:") {
-				key := strings.TrimPrefix(line, "p:")
+
+			if strings.HasPrefix(line, "sel:") {
+				value := strings.TrimPrefix(line, "sel:")
+				harmonicIndex, err := strconv.Atoi(value)
+				if err == nil && harmonicIndex > 0 && harmonicIndex <= numHarmonics {
+					currentHarmonic = harmonicIndex - 1
+					fmt.Printf("Selector value: Harmonic %d selected\n", harmonicIndex)
+				} else {
+					fmt.Println("Invalid harmonic selection")
+				}
+			} else if strings.HasPrefix(line, "pot:") {
+				value := strings.TrimPrefix(line, "pot:")
+				amplitude, err := strconv.ParseFloat(value, 64)
+				if err == nil && amplitude >= 0 && amplitude <= 100 {
+					harmonics[currentHarmonic].Amplitude = amplitude / 100
+					fmt.Printf("Potentiometer value: Amplitude of harmonic %d set to %.2f%%\n", currentHarmonic+1, amplitude)
+				} else {
+					fmt.Println("Invalid amplitude value")
+				}
+			} else if strings.HasPrefix(line, "z:") {
+				key := strings.TrimPrefix(line, "z:")
 				if k, ok := stdKeys[key]; ok {
 					freq := calculateFrequency(relations[k], octave)
 					fmt.Printf("Playing note: %s at frequency %.2f Hz\n", k, freq)
@@ -174,12 +200,9 @@ func pipeListener() {
 			} else if strings.HasPrefix(line, "r:") {
 				key := strings.TrimPrefix(line, "r:")
 				fmt.Printf("Key released: %s\n", key)
-			} else if strings.HasPrefix(line, "pot:") {
-				value := strings.TrimPrefix(line, "pot:")
-				fmt.Printf("Potentiometer value: %s\n", value)
-			} else if strings.HasPrefix(line, "sel:") {
-				value := strings.TrimPrefix(line, "sel:")
-				fmt.Printf("Selector value: %s\n", value)
+			} else if strings.HasPrefix(line, "generate_wave:") {
+				fmt.Println("Received command to generate .wav file:", line)
+				generateWaveFile(harmonics, "wave")
 			}
 
 			if line == "q" {
@@ -192,57 +215,14 @@ func pipeListener() {
 }
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
-
 	harmonics := make([]Harmonic, numHarmonics)
 	for i := range harmonics {
-		harmonics[i] = Harmonic{Frequency: fundamental * float64(i+1), Amplitude: 0, Waveform: "sine"} // Default to sine wave
-	}
-
-	fmt.Println("Enter 'exit' to quit, 'generate [filename]' to create a wave file, 'listen' to start listening, or tune harmonics like '1 square 88':")
-
-	for {
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-
-		if input == "exit" {
-			break
-		} else if strings.HasPrefix(input, "generate") {
-			parts := strings.Split(input, " ")
-			fileName := "harmonic_wave.wav"
-			if len(parts) > 1 {
-				fileName = parts[1]
-			}
-			generateWaveFile(harmonics, fileName)
-		} else if input == "listen" {
-			pipeListener()
-		} else {
-			parts := strings.Split(input, " ")
-			if len(parts) == 3 {
-				harmonicIndex, err := strconv.Atoi(parts[0])
-				if err != nil || harmonicIndex < 1 || harmonicIndex > len(harmonics) {
-					fmt.Println("Invalid harmonic index.")
-					continue
-				}
-
-				waveform := parts[1]
-				if waveform != "sine" && waveform != "square" && waveform != "triangle" && waveform != "saw" {
-					fmt.Println("Invalid waveform. Choose from 'sine', 'square', 'triangle', 'saw'.")
-					continue
-				}
-
-				amplitude, err := strconv.ParseFloat(parts[2], 64)
-				if err != nil || amplitude < 0 || amplitude > 100 {
-					fmt.Println("Invalid amplitude. Must be between 0 and 100.")
-					continue
-				}
-
-				harmonics[harmonicIndex-1].Waveform = waveform
-				harmonics[harmonicIndex-1].Amplitude = amplitude / 100
-				fmt.Printf("Harmonic %d set to %s wave with amplitude %.2f\n", harmonicIndex, waveform, amplitude)
-			} else {
-				fmt.Println("Invalid input. Use format: [harmonic] [waveform] [amplitude]")
-			}
+		harmonics[i] = Harmonic{
+			Frequency: fundamental * float64(i+1),
+			Amplitude: 0,
+			Waveform:  "sine", // Default to sine wave
 		}
 	}
+	go pipeListener(harmonics)
+	select {}
 }

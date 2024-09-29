@@ -31,6 +31,22 @@ SLIDER_X = 20
 SLIDER_Y = 320
 selector_val = 1
 
+BUTTON_WIDTH = 100
+BUTTON_HEIGHT = 40
+BUTTON_X = WIDTH - BUTTON_WIDTH - 20
+BUTTON_Y = POT_CENTER[1] - BUTTON_HEIGHT // 2
+
+SELECTOR_CENTER = (WIDTH // 2 - 7.66 * POT_RADIUS, 400)
+angles = [0, 90, 180, 270]
+wave_value = 0
+cv = wave_value
+pipe_waves = {
+    0: 3,
+    90: 2,
+    180: 1,
+    270: 4
+}
+
 white_keys = ['z', 'x', 'c', 'v', 'b', 'n', 'm']
 black_keys = ['s', 'd', 'g', 'h', 'j']
 
@@ -66,7 +82,7 @@ def on_press(key):
 
     if char not in pressed_keys:
         pressed_keys.add(char)
-        write_to_pipe(f"p:{char}\n")
+        write_to_pipe(f"z:{char}\n")
     
     return char != 'q'
 
@@ -105,6 +121,14 @@ def draw_potentiometer():
     end_y = POT_CENTER[1] + POT_RADIUS * pygame.math.Vector2(1, 0).rotate(angle).y
     pygame.draw.line(screen, BLACK, POT_CENTER, (end_x, end_y), 2)
 
+def update_potentiometer(y_diff):
+    global pot_value, pot_val
+    pot_value -= y_diff // 2
+    pot_value = max(0, min(100, pot_value))
+    if pot_value != pot_val:
+        write_to_pipe(f"pot:{pot_value}\n")
+        pot_val = pot_value
+
 def draw_selector():
     global selector_value
     pygame.draw.rect(screen, LIGHT_GRAY, (SLIDER_X, SLIDER_Y, SLIDER_WIDTH, SLIDER_HEIGHT))
@@ -112,14 +136,6 @@ def draw_selector():
     
     handle_x = SLIDER_X + (selector_value - 1) * (SLIDER_WIDTH - 20) / 31
     pygame.draw.rect(screen, BLACK, (handle_x, SLIDER_Y, 20, SLIDER_HEIGHT))
-
-def update_potentiometer(y_diff):
-    global pot_value, pot_val
-    pot_value -= y_diff // 2  
-    pot_value = max(0, min(100, pot_value))
-    if pot_value != pot_val:
-        write_to_pipe(f"pot:{pot_value}\n")
-        pot_val = pot_value
 
 def update_selector(x):
     global selector_value, selector_val
@@ -130,17 +146,52 @@ def update_selector(x):
             write_to_pipe(f"sel:{selector_value}\n")
             selector_val = selector_value
 
+def draw_generate_button():
+    pygame.draw.rect(screen, LIGHT_GRAY, (BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT))
+    pygame.draw.rect(screen, BLACK, (BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT), 2)
+    font = pygame.font.Font(None, 30)
+    text_surface = font.render('Generate', True, BLACK)
+    text_rect = text_surface.get_rect(center=(BUTTON_X + BUTTON_WIDTH // 2, BUTTON_Y + BUTTON_HEIGHT // 2))
+    screen.blit(text_surface, text_rect)
+
+def snap_angle(angle):
+    closest_angle = min(angles, key=lambda x: abs(x - angle))
+    return closest_angle
+
+def draw_wave_selector():
+    pygame.draw.circle(screen, GRAY, SELECTOR_CENTER, POT_RADIUS)
+    angle = wave_value
+    end_x = SELECTOR_CENTER[0] + POT_RADIUS * pygame.math.Vector2(1, 0).rotate(angle).x
+    end_y = SELECTOR_CENTER[1] + POT_RADIUS * pygame.math.Vector2(1, 0).rotate(angle).y
+    pygame.draw.line(screen, BLACK, SELECTOR_CENTER, (end_x, end_y), 2)
+
+def update_wave(dy):
+    global wave_value, cv
+    wave_value -= dy // 2
+    wave_value = max(0, min(100, wave_value))
+    print(wave_value)
+    if snap_angle(wave_value) != cv:
+        write_to_pipe(f"w:{pipe_waves[wave_value]}\n")
+        cv = wave_value
+        print(cv)
+
+def generate_wave():
+    command = f"generate_wave:{pot_value},{selector_value}\n"  
+    write_to_pipe(command)  
+
+
 if __name__ == "__main__":
     try:
         setup_pipe()
-        print("Keyboard listener starting...")
         listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         listener.start()
-        
+
         running = True
         dragging_pot = False
         dragging_selector = False
+        dragging_wave = False
         last_y = 0
+        ly = 0
         while running:
             screen.fill(WHITE)
             for event in pygame.event.get():
@@ -150,12 +201,18 @@ if __name__ == "__main__":
                     if pygame.math.Vector2(event.pos[0] - POT_CENTER[0], event.pos[1] - POT_CENTER[1]).length() <= POT_RADIUS:
                         dragging_pot = True
                         last_y = event.pos[1]
+                    elif pygame.math.Vector2(event.pos[0] - SELECTOR_CENTER[0], event.pos[1] - SELECTOR_CENTER[1]).length() <= POT_RADIUS:
+                        dragging_wave = True
+                        ly = event.pos[1]
                     elif SLIDER_X <= event.pos[0] <= SLIDER_X + SLIDER_WIDTH and SLIDER_Y <= event.pos[1] <= SLIDER_Y + SLIDER_HEIGHT:
                         dragging_selector = True
                         update_selector(event.pos[0])
+                    elif BUTTON_X <= event.pos[0] <= BUTTON_X + BUTTON_WIDTH and BUTTON_Y <= event.pos[1] <= BUTTON_Y + BUTTON_HEIGHT:
+                        generate_wave()
                 elif event.type == pygame.MOUSEBUTTONUP:
                     dragging_pot = False
                     dragging_selector = False
+                    dragging_wave = False
                 elif event.type == pygame.MOUSEMOTION:
                     if dragging_pot:
                         y_diff = event.pos[1] - last_y
@@ -163,15 +220,22 @@ if __name__ == "__main__":
                         last_y = event.pos[1]
                     elif dragging_selector:
                         update_selector(event.pos[0])
+                    elif dragging_wave:
+                        dy = event.pos[1] - ly
+                        update_wave(dy)
+                        ly = event.pos[1]
 
             draw_piano()
             draw_selector()
             draw_potentiometer()
+            draw_generate_button()  
+            draw_wave_selector()
             pygame.display.flip()
 
     except Exception as e:
         print(f"An error occurred: {e}", file=sys.stderr)
+
     finally:
+        write_to_pipe("q\n")
         cleanup_pipe()
         pygame.quit()
-        print("Keyboard listener stopped.")
