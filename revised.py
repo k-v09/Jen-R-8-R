@@ -7,7 +7,7 @@ from pynput import keyboard
 pygame.init()
 WIDTH, HEIGHT = 560, 450
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Fractal Flux Origin")
+pygame.display.set_caption("Fractal Flux|X-Gen")
 
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
@@ -36,16 +36,9 @@ BUTTON_HEIGHT = 40
 BUTTON_X = WIDTH - BUTTON_WIDTH - 20
 BUTTON_Y = POT_CENTER[1] - BUTTON_HEIGHT // 2
 
-SELECTOR_CENTER = (WIDTH // 2 - 7.66 * POT_RADIUS, 400)
-angles = [0, 90, 180, 270]
+WAVE_CENTER = (WIDTH // 2 - 7.66 * POT_RADIUS, 400)
 wave_value = 0
 cv = wave_value
-pipe_waves = {
-    0: 3,
-    90: 2,
-    180: 1,
-    270: 4
-}
 
 white_keys = ['z', 'x', 'c', 'v', 'b', 'n', 'm']
 black_keys = ['s', 'd', 'g', 'h', 'j']
@@ -129,6 +122,22 @@ def update_potentiometer(y_diff):
         write_to_pipe(f"pot:{pot_value}\n")
         pot_val = pot_value
 
+def draw_waver():
+    global wave_value
+    pygame.draw.circle(screen, GRAY, WAVE_CENTER, POT_RADIUS)
+    theta = (wave_value / 100) * 360 - 180
+    e_x = WAVE_CENTER[0] + POT_RADIUS * pygame.math.Vector2(1, 0).rotate(theta).x
+    e_y = WAVE_CENTER[1] + POT_RADIUS * pygame.math.Vector2(1, 0).rotate(theta).y
+    pygame.draw.line(screen, BLACK, WAVE_CENTER, (e_x, e_y), 2)
+
+def update_waver(dy):
+    global wave_value, cv
+    wave_value -= dy // 2
+    wave_value = max(0, min(100, wave_value))
+    if wave_value != cv:
+        write_to_pipe(f"w:{wave_value}\n")
+        cv = wave_value
+
 def draw_selector():
     global selector_value
     pygame.draw.rect(screen, LIGHT_GRAY, (SLIDER_X, SLIDER_Y, SLIDER_WIDTH, SLIDER_HEIGHT))
@@ -154,27 +163,6 @@ def draw_generate_button():
     text_rect = text_surface.get_rect(center=(BUTTON_X + BUTTON_WIDTH // 2, BUTTON_Y + BUTTON_HEIGHT // 2))
     screen.blit(text_surface, text_rect)
 
-def snap_angle(angle):
-    closest_angle = min(angles, key=lambda x: abs(x - angle))
-    return closest_angle
-
-def draw_wave_selector():
-    pygame.draw.circle(screen, GRAY, SELECTOR_CENTER, POT_RADIUS)
-    angle = wave_value
-    end_x = SELECTOR_CENTER[0] + POT_RADIUS * pygame.math.Vector2(1, 0).rotate(angle).x
-    end_y = SELECTOR_CENTER[1] + POT_RADIUS * pygame.math.Vector2(1, 0).rotate(angle).y
-    pygame.draw.line(screen, BLACK, SELECTOR_CENTER, (end_x, end_y), 2)
-
-def update_wave(dy):
-    global wave_value, cv
-    wave_value -= dy // 2
-    wave_value = max(0, min(100, wave_value))
-    print(wave_value)
-    if snap_angle(wave_value) != cv:
-        write_to_pipe(f"w:{pipe_waves[wave_value]}\n")
-        cv = wave_value
-        print(cv)
-
 def generate_wave():
     command = f"generate_wave:{pot_value},{selector_value}\n"  
     write_to_pipe(command)  
@@ -188,10 +176,9 @@ if __name__ == "__main__":
 
         running = True
         dragging_pot = False
+        dragging_waver = False
         dragging_selector = False
-        dragging_wave = False
         last_y = 0
-        ly = 0
         while running:
             screen.fill(WHITE)
             for event in pygame.event.get():
@@ -201,9 +188,9 @@ if __name__ == "__main__":
                     if pygame.math.Vector2(event.pos[0] - POT_CENTER[0], event.pos[1] - POT_CENTER[1]).length() <= POT_RADIUS:
                         dragging_pot = True
                         last_y = event.pos[1]
-                    elif pygame.math.Vector2(event.pos[0] - SELECTOR_CENTER[0], event.pos[1] - SELECTOR_CENTER[1]).length() <= POT_RADIUS:
-                        dragging_wave = True
-                        ly = event.pos[1]
+                    elif pygame.math.Vector2(event.pos[0] - WAVE_CENTER[0], event.pos[1] - WAVE_CENTER[1]).length() <= POT_RADIUS:
+                        dragging_waver = True
+                        last_y = event.pos[1]
                     elif SLIDER_X <= event.pos[0] <= SLIDER_X + SLIDER_WIDTH and SLIDER_Y <= event.pos[1] <= SLIDER_Y + SLIDER_HEIGHT:
                         dragging_selector = True
                         update_selector(event.pos[0])
@@ -212,24 +199,24 @@ if __name__ == "__main__":
                 elif event.type == pygame.MOUSEBUTTONUP:
                     dragging_pot = False
                     dragging_selector = False
-                    dragging_wave = False
+                    dragging_waver = False
                 elif event.type == pygame.MOUSEMOTION:
                     if dragging_pot:
                         y_diff = event.pos[1] - last_y
                         update_potentiometer(y_diff)
                         last_y = event.pos[1]
+                    elif dragging_waver:
+                        y_diff = event.pos[1] - last_y
+                        update_waver(y_diff)
+                        last_y = event.pos[1]
                     elif dragging_selector:
                         update_selector(event.pos[0])
-                    elif dragging_wave:
-                        dy = event.pos[1] - ly
-                        update_wave(dy)
-                        ly = event.pos[1]
 
             draw_piano()
             draw_selector()
             draw_potentiometer()
-            draw_generate_button()  
-            draw_wave_selector()
+            draw_waver()
+            draw_generate_button()
             pygame.display.flip()
 
     except Exception as e:

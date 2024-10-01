@@ -25,7 +25,7 @@ const (
 type Harmonic struct {
 	Frequency float64
 	Amplitude float64
-	Waveform  string
+	Waveform  int
 }
 
 var (
@@ -60,12 +60,6 @@ var (
 		"m": "b",
 	}
 )
-var waveformMap = map[string]string{
-	"1": "sine",
-	"2": "square",
-	"3": "triangle",
-	"4": "saw",
-}
 
 func generateWaveFile(harmonics []Harmonic, fileName string) {
 	file, err := os.Create("generated/" + fileName + ".wav")
@@ -116,16 +110,26 @@ func generateHarmonicWave(file *os.File, sampleRate, duration int, harmonics []H
 	for i := 0; i < sampleRate*duration; i++ {
 		t := float64(i) / float64(sampleRate)
 		sample := 0.0
+		s2 := 0.0
 		for _, h := range harmonics {
-			switch h.Waveform {
-			case "sine":
+			if h.Waveform <= 25 {
 				sample += sinCalc(t, h.Frequency, h.Amplitude)
-			case "square":
+				s2 += squareCalc(t, h.Frequency, h.Amplitude)
+				sample = float64(1-h.Waveform/25)*sample + float64(h.Waveform/25)*s2
+			} else if h.Waveform <= 50 {
 				sample += squareCalc(t, h.Frequency, h.Amplitude)
-			case "triangle":
+				s2 += triangleCalc(t, h.Frequency, h.Amplitude)
+				sample = float64(1-h.Waveform/50)*sample + float64(h.Waveform/50)*s2
+			} else if h.Waveform <= 75 {
 				sample += triangleCalc(t, h.Frequency, h.Amplitude)
-			case "saw":
+				s2 = sawCalc(t, h.Frequency, h.Amplitude)
+				sample = float64(1-h.Waveform/75)*sample + float64(h.Waveform/75)*s2
+			} else if h.Waveform <= 100 {
 				sample += sawCalc(t, h.Frequency, h.Amplitude)
+				s2 = sinCalc(t, h.Frequency, h.Amplitude)
+				sample = float64(1-h.Waveform/100)*sample + float64(h.Waveform/100)*s2
+			} else {
+				sample += sinCalc(t, h.Frequency, h.Amplitude)
 			}
 		}
 		sample /= float64(len(harmonics))
@@ -200,9 +204,12 @@ func pipeListener(harmonics []Harmonic) {
 			} else if strings.HasPrefix(line, "r:") {
 				key := strings.TrimPrefix(line, "r:")
 				fmt.Printf("Key released: %s\n", key)
+			} else if strings.HasPrefix(line, "w:") {
+				value := strings.TrimPrefix(line, "w:")
+				fmt.Printf("Waveform of %d changed to value %s\n", currentHarmonic+1, value)
 			} else if strings.HasPrefix(line, "generate_wave:") {
-				fmt.Println("Received command to generate .wav file:", line)
-				generateWaveFile(harmonics, "wave")
+				fmt.Println("Received command to generate .wav file: ", line)
+				generateWaveFile(harmonics, "weird")
 			}
 
 			if line == "q" {
@@ -220,7 +227,7 @@ func main() {
 		harmonics[i] = Harmonic{
 			Frequency: fundamental * float64(i+1),
 			Amplitude: 0,
-			Waveform:  "sine", // Default to sine wave
+			Waveform:  0, // Default to sine wave
 		}
 	}
 	go pipeListener(harmonics)
